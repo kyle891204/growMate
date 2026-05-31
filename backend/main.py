@@ -19,8 +19,11 @@ from fastapi.responses import StreamingResponse
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
-
+from database import Base, engine
 load_dotenv()
+
+#db 연동
+Base.metadata.create_all(bind=engine)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL = os.getenv("MODEL", "gemini-2.5-flash")
