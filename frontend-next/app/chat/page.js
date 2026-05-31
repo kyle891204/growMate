@@ -7,6 +7,7 @@ import { SendIcon } from "@/components/Icons";
 import { initialMessages, promptChips, getPlantReply } from "@/lib/data/chat";
 import styles from "./chat.module.css";
 
+
 function nowLabel() {
   const d = new Date();
   let h = d.getHours();
