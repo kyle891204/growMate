@@ -1,0 +1,67 @@
+.stage {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  overflow: visible;
+  /* 둥근 카드/원형 래퍼에서 캐릭터 모서리가 잘리지 않도록 약간의 여백 */
+  box-sizing: border-box;
+  padding: 7%;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
+}
+
+/* 잎 레이어: 줄기 부근(약 60% 지점)을 축으로 살랑살랑 */
+.sway {
+  transform-origin: 50% 60%;
+  animation: gm-leaf-sway 4.6s ease-in-out infinite;
+}
+
+@keyframes gm-leaf-sway {
+  0% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(0.6deg);
+  }
+  75% {
+    transform: rotate(3deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* 화분/몸통 레이어: 밑동 기준 미세한 숨쉬기 */
+.breathe {
+  transform-origin: 50% 92%;
+  animation: gm-breathe 4.6s ease-in-out infinite;
+}
+
+@keyframes gm-breathe {
+  0%,
+  100% {
+    transform: scaleY(1) scaleX(1);
+  }
+  50% {
+    transform: scaleY(1.015) scaleX(0.993);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sway,
+  .breathe {
+    animation: none;
+  }
+}

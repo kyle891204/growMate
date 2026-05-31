@@ -1,0 +1,202 @@
+/* 조도 부족 디밍 오버레이 */
+.dimOverlay {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--frame-width);
+  pointer-events: none;
+  z-index: 60;
+  /* 가장자리가 더 짙은 어두컴컴한 느낌 */
+  background: radial-gradient(
+    circle at 50% 38%,
+    rgba(18, 26, 22, 0.18) 0%,
+    rgba(14, 20, 17, 0.52) 100%
+  );
+  opacity: 1;
+  transition: opacity 0.7s ease;
+}
+
+/* LED ON: 다시 밝아짐 */
+.dimOverlay.lit {
+  opacity: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px 4px;
+}
+
+.brand {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--green-dark);
+  letter-spacing: -0.3px;
+}
+
+.bell {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 4px;
+}
+
+.dot {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  border: 2px solid var(--bg);
+}
+
+/* 식물 영역 */
+.plantArea {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0 6px;
+}
+
+.plantBtn {
+  background: radial-gradient(circle at 50% 42%, var(--green-light) 0%, rgba(234, 245, 236, 0) 68%);
+  border: none;
+  border-radius: 50%;
+  padding: 6px;
+  line-height: 0;
+}
+
+.wiggle {
+  animation: wiggle 0.6s ease;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+  75% { transform: rotate(-2deg); }
+}
+
+.touchHint {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--text-sub);
+  font-weight: 500;
+}
+
+.touchToast {
+  position: absolute;
+  top: 6px;
+  background: var(--green-dark);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  animation: pop 0.25s ease;
+  z-index: 2;
+}
+
+@keyframes pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* 제안 */
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 14px 0 4px;
+}
+
+.bubbleText {
+  font-size: 14.5px;
+  color: var(--text);
+}
+
+.bubbleBtns {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.actionToast {
+  margin: 12px 0 0;
+  background: var(--green-light);
+  color: var(--green-dark);
+  border: 1px solid #d7ead9;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 상태 카드 */
+.statusCard {
+  margin-top: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.statusHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.statusFace {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  background: var(--green-light);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.statusTitle {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.statusUpdated {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+
+.statusDesc {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--text-sub);
+  line-height: 1.55;
+}
+
+/* 센서 */
+.sectionTitle {
+  margin: 22px 2px 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sensorGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}

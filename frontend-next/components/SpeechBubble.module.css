@@ -1,0 +1,35 @@
+.bubble {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  font-size: 14.5px;
+}
+
+/* 꼬리 - 아래쪽을 가리킴 */
+.tail {
+  position: absolute;
+  bottom: -8px;
+  left: 36px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+
+.water {
+  border-color: #d7ead9;
+}
+
+.light {
+  background: #fdf6ee;
+  border-color: #f2dcc1;
+}
+.light .tail {
+  background: #fdf6ee;
+  border-color: #f2dcc1;
+}

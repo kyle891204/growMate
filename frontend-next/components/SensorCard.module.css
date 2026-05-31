@@ -1,0 +1,35 @@
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
+  padding: 14px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconWrap {
+  display: inline-flex;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--text-sub);
+  font-weight: 500;
+}
+
+.value {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.note {
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+}

@@ -1,0 +1,76 @@
+:root {
+  /* ===== 디자인 토큰 ===== */
+  --bg: #f7f8f5;
+  --card: #ffffff;
+  --text: #222222;
+  --text-sub: #6b6b6b;
+  --green: #6faf7a;
+  --green-light: #eaf5ec;
+  --warn: #e9a35b;
+
+  /* 보조 토큰 */
+  --green-dark: #5a9968;
+  --border: #ecefe9;
+  --shadow: 0 2px 12px rgba(34, 34, 34, 0.06);
+  --shadow-soft: 0 1px 4px rgba(34, 34, 34, 0.04);
+
+  --radius-card: 18px;
+  --radius-pill: 999px;
+
+  --frame-width: 390px;
+  --tabbar-height: 64px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+}
+
+body {
+  background: #e9ebe4;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic",
+    "Apple SD Gothic Neo", "Noto Sans KR", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.45;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ===== 모바일 프레임 ===== */
+.app-frame {
+  position: relative;
+  width: 100%;
+  max-width: var(--frame-width);
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: var(--bg);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
+  overflow-x: hidden;
+}
+
+.app-content {
+  padding: 16px 16px calc(var(--tabbar-height) + 24px);
+}
+
+/* 공통 화면 제목 */
+.screen-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 8px 2px 16px;
+}
