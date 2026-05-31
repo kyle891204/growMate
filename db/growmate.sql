@@ -1,4 +1,4 @@
-CREATE DATABASE growmate;
+CREATE DATABASE growMate;
 USE growMate;
 
 -- =========================
