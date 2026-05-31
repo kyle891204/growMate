@@ -33,7 +33,6 @@ function Plant({ status, size = 1 }) {
             viewBox="0 0 200 220"
             style={{ width: 160 * size, height: 160 * size, overflow: "visible" }}
         >
-            {/* Environment */}
             {!thirsty && (
                 <>
                     <ellipse cx="155" cy="38" rx="22" ry="13" fill="#DDF0FF" opacity=".7" />
@@ -49,22 +48,18 @@ function Plant({ status, size = 1 }) {
                 </>
             )}
 
-            {/* Pot */}
             <path d="M58 185 L70 210 L130 210 L142 185 Z" fill={C.pot} />
             <rect x="50" y="176" width="100" height="13" rx="5" fill={C.potDark} />
             <ellipse cx="100" cy="176" rx="50" ry="7" fill={C.soil} />
 
-            {/* Leaves back */}
             <path d="M100 176 Q68 140 72 85 Q93 118 100 176" fill={ld} opacity=".65" />
             <path d="M100 176 Q132 140 128 85 Q107 118 100 176" fill={ld} opacity=".65" />
 
-            {/* Leaves front */}
             <path d="M100 176 Q55 148 50 98 Q76 124 100 176" fill={lc} />
             <path d="M100 176 Q83 128 86 52 Q102 92 100 176" fill={ld} />
             <path d="M100 176 Q117 128 114 52 Q98 92 100 176" fill={ld} />
             <path d="M100 176 Q145 148 150 98 Q124 124 100 176" fill={lc} />
 
-            {/* Face */}
             {happy && (
                 <g>
                     <path d="M87 118 Q93 112 99 118" stroke="#1E3A26" strokeWidth="2.5" strokeLinecap="round" fill="none" />
@@ -153,9 +148,11 @@ function Bubble({ msg }) {
                         maxWidth: 220,
                         lineHeight: 1.45,
                         boxShadow: "0 1px 5px rgba(0,0,0,.07)",
+                        whiteSpace: "pre-wrap",
                     }}
                 >
                     {msg.text}
+                    {msg.streaming && <span style={{ opacity: 0.4 }}>▋</span>}
                 </div>
                 <div
                     style={{
@@ -170,13 +167,88 @@ function Bubble({ msg }) {
     );
 }
 
+// ── LLM 호출 (스트리밍) ─────────────────────────────────────────
+// 백엔드 /api/chat (SSE) 호출. onToken으로 토큰이 들어올 때마다 콜백.
+// 네트워크/서버 실패 시 throw → 호출부에서 fallback 사용.
+async function streamPlantReply({ message, sensor, history, onToken }) {
+    const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            message,
+            sensor,
+            history: history.slice(-5).map((m) => ({ from: m.from, text: m.text })),
+        }),
+    });
+    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let full = "";
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+
+        // SSE 이벤트는 "\n\n"로 구분
+        const events = buf.split("\n\n");
+        buf = events.pop() ?? "";
+
+        for (const evt of events) {
+            const line = evt.split("\n").find((l) => l.startsWith("data: "));
+            if (!line) continue;
+            const data = line.slice(6).trim();
+            // 구버전 호환: 그냥 [DONE]만 와도 정상 종료
+            if (data === "[DONE]") return full;
+            try {
+                const obj = JSON.parse(data);
+                if (obj.error) throw new Error(obj.error);
+                if (obj.token) {
+                    full += obj.token;
+                    onToken(obj.token);
+                }
+                // 백엔드가 보낸 누적 텍스트와 비교해 끝 누락분 보정
+                if (obj.done) {
+                    if (typeof obj.full === "string" && obj.full.length > full.length) {
+                        const missing = obj.full.slice(full.length);
+                        full = obj.full;
+                        onToken(missing);
+                    }
+                    return full;
+                }
+            } catch (e) {
+                // 파싱 실패는 건너뜀
+            }
+        }
+    }
+    return full;
+}
+
+// 백엔드 죽었을 때 쓸 fallback (기존 emoji lookup)
+function localFallbackReply(text) {
+    const emojiReplies = {
+        "😊": ["나도 기분 좋아! 🌿", "같이 행복하자 🌸"],
+        "😢": ["왜 슬퍼? 내가 있잖아 🌱", "힘내! 응원할게 💚"],
+        "❤️": ["나도 좋아해! 더 잘 자랄게 🌿", "고마워, 최고야 🌸"],
+        "😴": ["같이 쉬자~ 😴", "푹 쉬어!"],
+        "🔥": ["열정 뿜뿜! 🌱", "오늘도 파이팅!"],
+        "🌧": ["비 좋아! 물 생각 나네 💧", "촉촉한 날이다~"],
+    };
+    const generic = ["고마워! 🌸", "기분이 좋아졌어!", "오늘도 잘 부탁해 😊", "같이 잘 지내자 🌿"];
+    const arr = emojiReplies[text.trim()] || generic;
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
 // ── Main App ───────────────────────────────────────────────────
 export default function GrowmateApp() {
-    const [screen, setScreen] = useState("monitor"); // monitor | chat
+    const [screen, setScreen] = useState("monitor");
     const [plantStatus, setPlantStatus] = useState("thirsty");
     const [alertDismissed, setAlertDismissed] = useState(false);
     const [chatTab, setChatTab] = useState("chat");
     const [input, setInput] = useState("");
+    const [busy, setBusy] = useState(false);
     const [messages, setMessages] = useState([
         { from: "plant", text: "안녕! 오늘도 잘 부탁해 🌱", time: "10:28" },
         { from: "plant", text: "요즘 좀 목이 말라... 물 줄 수 있어? 💧", time: "10:30" },
@@ -186,6 +258,7 @@ export default function GrowmateApp() {
 
     const temp = 23;
     const humidity = 58;
+    const soil = plantStatus === "thirsty" ? 22 : 65;
 
     useEffect(() => {
         chatEnd.current?.scrollIntoView({ behavior: "smooth" });
@@ -210,26 +283,44 @@ export default function GrowmateApp() {
         setAlertDismissed(true);
     }
 
-    function sendMessage(text) {
-        if (!text.trim()) return;
-        setMessages((p) => [...p, { from: "user", text, time: now() }]);
+    async function sendMessage(text) {
+        if (!text.trim() || busy) return;
+        const userMsg = { from: "user", text, time: now() };
+        const historyForLLM = [...messages, userMsg];
+        setMessages((p) => [...p, userMsg]);
         setInput("");
+        setBusy(true);
 
-        const emojiReplies = {
-            "😊": ["나도 기분 좋아! 🌿", "같이 행복하자 🌸"],
-            "😢": ["왜 슬퍼? 내가 있잖아 🌱", "힘내! 응원할게 💚"],
-            "❤️": ["나도 좋아해! 더 잘 자랄게 🌿", "고마워, 최고야 🌸"],
-            "😴": ["같이 쉬자~ 😴", "푹 쉬어!"],
-            "🔥": ["열정 뿜뿜! 🌱", "오늘도 파이팅!"],
-            "🌧": ["비 좋아! 물 생각 나네 💧", "촉촉한 날이다~"],
-        };
-        const generic = ["고마워! 🌸", "기분이 좋아졌어!", "오늘도 잘 부탁해 😊", "같이 잘 지내자 🌿"];
-        const replies = emojiReplies[text.trim()] || generic;
+        // 스트리밍 자리표시 메시지 미리 추가
+        const placeholder = { from: "plant", text: "", time: now(), streaming: true };
+        setMessages((p) => [...p, placeholder]);
 
-        setTimeout(
-            () => addPlantMsg(replies[Math.floor(Math.random() * replies.length)]),
-            700
-        );
+        const updateLast = (updater) =>
+            setMessages((p) => {
+                const next = [...p];
+                const last = next[next.length - 1];
+                next[next.length - 1] = updater(last);
+                return next;
+            });
+
+        try {
+            await streamPlantReply({
+                message: text,
+                sensor: { temp, humidity, soil },
+                history: historyForLLM,
+                onToken: (tok) => updateLast((m) => ({ ...m, text: m.text + tok })),
+            });
+            updateLast((m) => ({ ...m, streaming: false }));
+        } catch (err) {
+            console.warn("LLM failed, using fallback:", err);
+            updateLast((m) => ({
+                ...m,
+                text: localFallbackReply(text),
+                streaming: false,
+            }));
+        } finally {
+            setBusy(false);
+        }
     }
 
     const showAlert = plantStatus !== "happy" && !alertDismissed;
@@ -238,7 +329,6 @@ export default function GrowmateApp() {
     const alertLabel = plantStatus === "thirsty" ? "물이 필요해요 💧" : "빛이 필요해요 ☀️";
     const alertAction = plantStatus === "thirsty" ? "물 주기" : "조명 켜기";
 
-    // ── Shared phone frame ───────────────────────────────────────
     const phone = {
         maxWidth: 390,
         margin: "0 auto",
@@ -251,7 +341,6 @@ export default function GrowmateApp() {
         overflow: "hidden",
     };
 
-    // ── Header ───────────────────────────────────────────────────
     const Header = () => (
         <div
             style={{
@@ -313,14 +402,12 @@ export default function GrowmateApp() {
         </div>
     );
 
-    // ── Monitor screen ───────────────────────────────────────────
     if (screen === "monitor") {
         return (
             <div style={phone}>
                 <Header />
 
                 <div style={{ flex: 1, display: "flex", gap: 12, padding: 16 }}>
-                    {/* Sensor gauges */}
                     <div
                         style={{
                             display: "flex",
@@ -344,7 +431,6 @@ export default function GrowmateApp() {
                         />
                     </div>
 
-                    {/* Plant display */}
                     <div
                         style={{
                             flex: 1,
@@ -361,7 +447,6 @@ export default function GrowmateApp() {
                     </div>
                 </div>
 
-                {/* Status / action bar */}
                 <div style={{ padding: "0 16px 30px" }}>
                     {showAlert ? (
                         <div
@@ -430,7 +515,6 @@ export default function GrowmateApp() {
         );
     }
 
-    // ── Chat screen ───────────────────────────────────────────────
     const journalEntries = [
         { date: "2026.05.25", note: "오늘 물 줬어 🌿 습도 65%로 상승!", mood: "😊" },
         { date: "2026.05.24", note: "빛이 부족했던 날. 조명 보충해줌 ☀️", mood: "😔" },
@@ -442,7 +526,6 @@ export default function GrowmateApp() {
         <div style={phone}>
             <Header />
 
-            {/* Tabs */}
             <div
                 style={{
                     display: "flex",
@@ -471,7 +554,6 @@ export default function GrowmateApp() {
                 ))}
             </div>
 
-            {/* Mini plant */}
             <div
                 style={{
                     height: 110,
@@ -489,7 +571,6 @@ export default function GrowmateApp() {
 
             {chatTab === "chat" ? (
                 <>
-                    {/* Messages */}
                     <div
                         style={{
                             flex: 1, overflowY: "auto", padding: "14px 16px",
@@ -502,7 +583,6 @@ export default function GrowmateApp() {
                         <div ref={chatEnd} />
                     </div>
 
-                    {/* Mood emoji strip */}
                     <div
                         style={{
                             background: C.white,
@@ -516,8 +596,11 @@ export default function GrowmateApp() {
                             <button
                                 key={e}
                                 onClick={() => sendMessage(e)}
+                                disabled={busy}
                                 style={{
-                                    background: "none", border: "none", cursor: "pointer",
+                                    background: "none", border: "none",
+                                    cursor: busy ? "not-allowed" : "pointer",
+                                    opacity: busy ? 0.4 : 1,
                                     fontSize: 24, padding: "2px 6px",
                                     borderRadius: 10,
                                     transition: "transform .15s",
@@ -530,7 +613,6 @@ export default function GrowmateApp() {
                         ))}
                     </div>
 
-                    {/* Text input */}
                     <div
                         style={{
                             display: "flex",
@@ -543,7 +625,8 @@ export default function GrowmateApp() {
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && sendMessage(input)}
-                            placeholder="식물에게 메시지..."
+                            placeholder={busy ? "식물이 생각 중..." : "식물에게 메시지..."}
+                            disabled={busy}
                             style={{
                                 flex: 1,
                                 border: `1.5px solid ${C.border}`,
@@ -558,11 +641,12 @@ export default function GrowmateApp() {
                         />
                         <button
                             onClick={() => sendMessage(input)}
+                            disabled={busy}
                             style={{
-                                background: C.green, color: "#fff",
+                                background: busy ? C.muted : C.green, color: "#fff",
                                 border: "none", borderRadius: "50%",
                                 width: 44, height: 44,
-                                cursor: "pointer", fontSize: 18,
+                                cursor: busy ? "not-allowed" : "pointer", fontSize: 18,
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 flexShrink: 0,
                             }}
@@ -572,7 +656,6 @@ export default function GrowmateApp() {
                     </div>
                 </>
             ) : (
-                /* Journal */
                 <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
                     <p style={{ fontSize: 12, color: C.muted, marginBottom: 12, fontFamily: "sans-serif" }}>
                         식물과 함께한 기록
