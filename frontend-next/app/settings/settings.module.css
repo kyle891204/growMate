@@ -1,0 +1,128 @@
+/* 프로필 카드 */
+.profile {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  text-align: left;
+}
+
+.profileFace {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  background: var(--green-light);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.profileBody {
+  flex: 1;
+}
+
+.profileLabel {
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+.profileName {
+  font-size: 17px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.profileMeta {
+  font-size: 13px;
+  color: var(--green-dark);
+  margin-top: 2px;
+}
+
+/* 섹션 */
+.section {
+  margin-top: 22px;
+}
+
+.sectionTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  margin: 0 4px 8px;
+}
+
+.group {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowLabel {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.rowValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+/* 하단 버튼 */
+.bottomBtns {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.logout {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.reset {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid #f0d4d4;
+  background: #fff;
+  color: #d05b5b;
+  font-size: 15px;
+  font-weight: 600;
+}

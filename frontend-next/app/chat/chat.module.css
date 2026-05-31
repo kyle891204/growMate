@@ -1,0 +1,192 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 상단 안내 카드 */
+.introCard {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--green-light);
+  border: 1px solid #d7ead9;
+  border-radius: var(--radius-card);
+  padding: 14px;
+}
+
+.introFace {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.modeChip {
+  display: inline-block;
+  background: var(--green);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.introTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.introDesc {
+  font-size: 13px;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+
+/* 채팅 영역 */
+.chatScroll {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* 칩 + 입력바(고정) 만큼 하단 여백 확보 */
+  padding-bottom: 8px;
+  margin-bottom: 124px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.left {
+  justify-content: flex-start;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.miniIcon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  background: var(--green-light);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  align-self: flex-end;
+  margin-bottom: 20px;
+}
+
+.colLeft {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 76%;
+}
+
+.colRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 76%;
+}
+
+.bubble {
+  font-size: 14.5px;
+  line-height: 1.5;
+  padding: 11px 14px;
+  border-radius: 16px;
+  word-break: break-word;
+}
+
+.plantBubble {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 5px;
+  color: var(--text);
+}
+
+.userBubble {
+  background: var(--green);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+
+.time {
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+/* 추천 칩 + 입력창 (탭바 위에 고정) */
+.chips {
+  position: fixed;
+  bottom: calc(var(--tabbar-height) + 56px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--frame-width);
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 16px;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.inputBar {
+  position: fixed;
+  bottom: var(--tabbar-height);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--frame-width);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 10px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.input {
+  flex: 1;
+  height: 42px;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0 16px;
+  font-size: 14.5px;
+  outline: none;
+}
+.input:focus {
+  border-color: var(--green);
+}
+
+.sendBtn {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sendBtn:active {
+  background: var(--green-dark);
+}

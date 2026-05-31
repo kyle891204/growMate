@@ -1,0 +1,53 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+/* 채움 (메인 액션) */
+.filled {
+  background: var(--green);
+  color: #fff;
+}
+.filled:active {
+  background: var(--green-dark);
+}
+
+/* 외곽선 (보조 액션) */
+.outline {
+  background: #fff;
+  color: var(--green-dark);
+  border-color: var(--green);
+}
+.outline:active {
+  background: var(--green-light);
+}
+
+/* 연한 초록 칩 (추천 프롬프트 등) */
+.chip {
+  background: var(--green-light);
+  color: var(--green-dark);
+}
+.chip:active {
+  background: #dceee0;
+}
+
+/* 필터 칩 (기본 회색, active 시 초록) */
+.filter {
+  background: #f0f1ee;
+  color: var(--text-sub);
+  font-weight: 600;
+  padding: 7px 14px;
+}
+.filter.active {
+  background: var(--green);
+  color: #fff;
+}
