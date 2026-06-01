@@ -7,6 +7,7 @@ import { SendIcon } from "@/components/Icons";
 import { initialMessages, promptChips, getPlantReply } from "@/lib/data/chat";
 import styles from "./chat.module.css";
 
+
 function nowLabel() {
   const d = new Date();
   let h = d.getHours();
@@ -27,24 +28,80 @@ export default function ChatPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  function send(text) {
+async function send(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
-    // TODO(API): sendMessage(trimmed) 호출 → 백엔드 LLM 응답(reply)으로 교체.
-    //   getPlantReply(키워드 mock) 대신 사용. lib/api/chat.js, docs/api.md §2.2
+
+    // 1. 유저 메시지 화면에 띄우기 (원본 유지)
     const time = nowLabel();
     const userMsg = { id: (idRef.current += 1), role: "user", text: trimmed, time };
-    const plantMsg = {
-      id: (idRef.current += 1),
-      role: "plant",
-      text: getPlantReply(trimmed),
-      time,
-    };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
-    // 식물의 공감 응답을 약간의 지연 후 추가 (대화처럼 보이게)
-    setTimeout(() => setMessages((prev) => [...prev, plantMsg]), 500);
-  }
+
+    // 2. 식물 메시지 '빈 칸' 미리 만들기 (여기서 plantId를 확실하게 선언!)
+    const plantId = (idRef.current += 1);
+    const plantMsg = {
+        id: plantId,
+        role: "plant",
+        text: "",
+        time,
+    };
+    setMessages((prev) => [...prev, plantMsg]);
+
+    // 3. 파이썬 서버와 통신 시작
+    try {
+        const response = await fetch('http://localhost:8000/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: trimmed,
+                sensor: { temp: 24, humidity: 45, soil: 20 },
+                history: messages.map(m => ({ from: m.role, text: m.text }))
+            }),
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const dataStr = line.replace('data: ', '').trim();
+                    if (!dataStr) continue;
+
+                    const data = JSON.parse(dataStr);
+                    if (data.done) break;
+
+                    if (data.token) {
+                        // 위에서 꽉 잡아둔 plantId를 여기서 안전하게 사용!
+                        setMessages((prev) =>
+                            prev.map((msg) =>
+                                msg.id === plantId
+                                    ? { ...msg, text: msg.text + data.token }
+                                    : msg
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('LLM API 에러:', error);
+        setMessages((prev) =>
+            prev.map((msg) =>
+                msg.id === plantId
+                    ? { ...msg, text: "서버와 연결이 끊어졌어요 ㅠㅠ" }
+                    : msg
+            )
+        );
+    }
+}
 
   function handleSubmit(e) {
     e.preventDefault();
