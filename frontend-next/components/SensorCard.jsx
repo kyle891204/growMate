@@ -8,7 +8,7 @@ const ICONS = {
   sun: SunIcon,
 };
 
-export default function SensorCard({ label, value, note, status, icon, target }) {
+export default function SensorCard({ label, value, note, status, icon }) {
   const Icon = ICONS[icon] || DropletIcon;
   const color = status === "warn" ? "var(--warn)" : "var(--green)";
 
@@ -21,10 +21,9 @@ export default function SensorCard({ label, value, note, status, icon, target })
         <span className={styles.label}>{label}</span>
       </div>
       <div className={styles.value}>{value}</div>
-      <div className={styles.note} style={{ color }}>{note}</div>
-      {target && (
-        <div className={styles.target}>권장 {target}</div>
-      )}
+      <div className={styles.note} style={{ color }}>
+        {note}
+      </div>
     </div>
   );
 }

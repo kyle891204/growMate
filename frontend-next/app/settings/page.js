@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import Toggle from "@/components/Toggle";
 import PlantCharacter from "@/components/PlantCharacter";
 import { ChevronRight } from "@/components/Icons";
@@ -9,14 +8,16 @@ import {
   careSettings,
   chatSettings,
   systemMenu,
+  profile,
 } from "@/lib/data/settings";
-import { useProfile } from "@/lib/hooks/useProfile";
 import styles from "./settings.module.css";
 
 function ToggleRow({ label, value }) {
   return (
     <div className={styles.row}>
       <span className={styles.rowLabel}>{label}</span>
+      {/* TODO(API): onChange 시 updateSettings({...}) 호출해 저장. 현재는 비제어라 저장 안 됨.
+          초기값도 getSettings()로 받아 controlled 로 전환 필요. lib/api/settings.js, docs/api.md §4.2 */}
       <Toggle defaultOn={value} />
     </div>
   );
@@ -32,22 +33,19 @@ function Section({ title, children }) {
 }
 
 export default function SettingsPage() {
-  const router = useRouter();
-  const { profile } = useProfile();
-
   return (
     <div>
       <h1 className="screen-title">설정</h1>
 
       {/* 식물 프로필 카드 */}
-      <button className={styles.profile} onClick={() => router.push("/profile")}>
+      <button className={styles.profile}>
         <span className={styles.profileFace} aria-hidden="true">
-          <PlantCharacter size={56} mood={profile.avatar} />
+          <PlantCharacter size={56} mood="happy" />
         </span>
         <div className={styles.profileBody}>
           <div className={styles.profileLabel}>내 식물 프로필</div>
           <div className={styles.profileName}>{profile.name}</div>
-          <div className={styles.profileMeta}>{profile.species}{profile.adoptionDate ? ` · 입양일 ${profile.adoptionDate}` : ""}</div>
+          <div className={styles.profileMeta}>{profile.meta}</div>
         </div>
         <ChevronRight />
       </button>

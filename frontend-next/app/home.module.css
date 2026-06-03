@@ -66,29 +66,12 @@
   padding: 10px 0 6px;
 }
 
-/* 글로우 래퍼: 그라디언트 배경 + wiggle 대상 */
-.plantGlow {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 글로우 배경: 버튼과 분리해 clip 없이 뒤에서만 렌더 */
-.plantGlowBg {
-  position: absolute;
-  inset: -20px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 48%, var(--green-light) 0%, rgba(234, 245, 236, 0) 70%);
-  pointer-events: none;
-}
-
 .plantBtn {
-  background: none;
+  background: radial-gradient(circle at 50% 42%, var(--green-light) 0%, rgba(234, 245, 236, 0) 68%);
   border: none;
-  padding: 0;
+  border-radius: 50%;
+  padding: 6px;
   line-height: 0;
-  position: relative;
 }
 
 .wiggle {
@@ -102,50 +85,11 @@
   75% { transform: rotate(-2deg); }
 }
 
-/* 식물 이름·종·입양일 */
-.plantIdentity {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin-top: 14px;
-}
-
-.plantName {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--green-dark);
-  letter-spacing: -0.4px;
-}
-
-.plantMeta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.speciesBadge {
-  background: var(--green-light);
-  color: var(--green-dark);
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  border: 1px solid #d0e8d3;
-}
-
-.adoptionDays {
-  font-size: 12.5px;
-  color: var(--text-sub);
-  font-weight: 500;
-}
-
 .touchHint {
-  margin-top: 10px;
-  font-size: 13px;
+  margin-top: 4px;
+  font-size: 14px;
   color: var(--text-sub);
   font-weight: 500;
-  opacity: 0.75;
 }
 
 .touchToast {
@@ -214,10 +158,6 @@
   gap: 12px;
 }
 
-.statusInfo {
-  flex: 1;
-}
-
 .statusFace {
   width: 46px;
   height: 46px;
@@ -247,7 +187,6 @@
   color: var(--text-sub);
   line-height: 1.55;
 }
-
 
 /* 센서 */
 .sectionTitle {
