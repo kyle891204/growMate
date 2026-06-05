@@ -8,6 +8,7 @@ import Pill from "@/components/Pill";
 import { BellIcon } from "@/components/Icons";
 import { plant } from "@/lib/data/plant";
 import { getSensors, getSuggestions, waterPlant, setLed, dismissSuggestion } from "@/lib/api";
+import { useProfile } from "@/lib/hooks/useProfile";
 import styles from "./home.module.css";
 // 제안·센서는 백엔드에서 가져온다. 센서는 라즈베리파이가 POST 한 최신값을 주기적으로 폴링한다.
 // 식물 상태(표정/문구)는 하드웨어 판정 전이라 아직 mock 을 사용한다.
@@ -22,6 +23,7 @@ const TOUCH_LINES = [
 ];
 
 export default function HomePage() {
+  const { profile } = useProfile();
   const [suggestions, setSuggestions] = useState([]);
   const [sensors, setSensors] = useState([]);
   const [mood, setMood] = useState(plant.mood);
@@ -111,13 +113,30 @@ export default function HomePage() {
       {/* 식물 영역 */}
       <section className={styles.plantArea}>
         {touchMsg && <div className={styles.touchToast}>{touchMsg}</div>}
-        <button
-          className={`${styles.plantBtn} ${wiggle ? styles.wiggle : ""}`}
-          onClick={handleTouch}
-          aria-label="식물 터치"
-        >
-          <PlantCharacter size={210} mood={mood} />
-        </button>
+        <div className={`${styles.plantGlow} ${wiggle ? styles.wiggle : ""}`}>
+          <div className={styles.plantGlowBg} aria-hidden="true" />
+          <button
+            className={styles.plantBtn}
+            onClick={handleTouch}
+            aria-label="식물 터치"
+          >
+            <PlantCharacter size={190} mood={mood} />
+          </button>
+        </div>
+
+        {/* 식물 이름 · 종 · 입양일 */}
+        <div className={styles.plantIdentity}>
+          <p className={styles.plantName}>{profile.name}</p>
+          <div className={styles.plantMeta}>
+            <span className={styles.speciesBadge}>{profile.species}</span>
+            {profile.adoptionDate && (
+              <span className={styles.adoptionDays}>
+                · {Math.floor((Date.now() - new Date(profile.adoptionDate)) / 86400000)}일째 함께
+              </span>
+            )}
+          </div>
+        </div>
+
         <p className={styles.touchHint}>식물을 터치해보세요!</p>
       </section>
 
@@ -142,13 +161,13 @@ export default function HomePage() {
 
       {toast && <div className={styles.actionToast}>{toast}</div>}
 
-      {/* 식물 상태 카드 */}
+      {/* 식물 프로필 + 상태 카드 */}
       <section className={styles.statusCard}>
         <div className={styles.statusHead}>
           <span className={styles.statusFace} aria-hidden="true">
             <PlantCharacter size={46} mood={mood} />
           </span>
-          <div>
+          <div className={styles.statusInfo}>
             <div className={styles.statusTitle}>{plant.statusTitle}</div>
             <div className={styles.statusUpdated}>업데이트 {plant.lastUpdated}</div>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Toggle from "@/components/Toggle";
 import PlantCharacter from "@/components/PlantCharacter";
 import { ChevronRight } from "@/components/Icons";
@@ -9,9 +10,9 @@ import {
   careSettings,
   chatSettings,
   systemMenu,
-  profile,
 } from "@/lib/data/settings";
 import { getSettings, updateSettings } from "@/lib/api";
+import { useProfile } from "@/lib/hooks/useProfile";
 import styles from "./settings.module.css";
 
 // 토글 한 줄. 값은 부모가 소유(controlled)하고, 바꾸면 백엔드에 저장한다.
@@ -36,6 +37,8 @@ function Section({ title, children }) {
 export default function SettingsPage() {
   // settings: { notify:{...}, care:{...}, chat:{...} } — 백엔드 DB 값
   const [settings, setSettings] = useState(null);
+  const router = useRouter();
+  const { profile } = useProfile();
 
   useEffect(() => {
     let alive = true;
@@ -68,14 +71,14 @@ export default function SettingsPage() {
       <h1 className="screen-title">설정</h1>
 
       {/* 식물 프로필 카드 */}
-      <button className={styles.profile}>
+      <button className={styles.profile} onClick={() => router.push("/profile")}>
         <span className={styles.profileFace} aria-hidden="true">
-          <PlantCharacter size={56} mood="happy" />
+          <PlantCharacter size={56} mood={profile.avatar} />
         </span>
         <div className={styles.profileBody}>
           <div className={styles.profileLabel}>내 식물 프로필</div>
           <div className={styles.profileName}>{profile.name}</div>
-          <div className={styles.profileMeta}>{profile.meta}</div>
+          <div className={styles.profileMeta}>{profile.species}{profile.adoptionDate ? ` · 입양일 ${profile.adoptionDate}` : ""}</div>
         </div>
         <ChevronRight />
       </button>
