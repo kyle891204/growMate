@@ -19,12 +19,15 @@ import pygame
 import math
  
 # ── 디스플레이 설정 ─────────────────────────────────────────────
-# LCD A v3: fbdev 드라이버 사용 (SPI → /dev/fb1)
-os.environ.setdefault("SDL_VIDEODRIVER", "fbcon")
-os.environ.setdefault("SDL_FBDEV", "/dev/fb1")
-os.environ.setdefault("SDL_NOMOUSE", "1")
- 
-WIDTH, HEIGHT = 480, 320   # 가로 모드
+# 라즈베리파이 OS는 KMS/DRM 으로 LCD 를 구동하므로 /dev/fb1 직접 쓰기는 안 된다.
+# 데스크톱 세션 위에 pygame 창(전체화면)으로 띄운다 → LCD 에 표시됨.
+# 반드시 라즈베리파이 '데스크톱의 터미널' 에서 실행할 것 (DISPLAY 가 설정돼 있어야 함).
+os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+
+WIDTH, HEIGHT = 480, 320   # 가로 모드 (LCD 해상도)
+
+# 전체화면으로 LCD 를 꽉 채울지 여부. 창으로 먼저 확인하려면 False.
+FULLSCREEN = True
  
 # ── 색상 팔레트 ─────────────────────────────────────────────────
 BG_HAPPY    = (220, 255, 220)   # 연두
@@ -60,8 +63,10 @@ def _init():
     if _screen is not None:
         return
     pygame.init()
-    _screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    flags = pygame.FULLSCREEN if FULLSCREEN else 0
+    _screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
     pygame.display.set_caption("GrowMate")
+    pygame.mouse.set_visible(False)
     # 한글 지원 폰트 (라즈베리파이 기본 폰트 경로)
     font_candidates = [
         "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
@@ -233,28 +238,29 @@ def _draw_info(surf, data: dict, mood: str):
  
  
 # ── 공개 API ─────────────────────────────────────────────────────
-def update_face(data: dict):
+def update_face(data: dict, mood: str = None):
     """
     센서 dict 를 받아 화면을 갱신한다.
+    mood 를 직접 넘기면 LLM 감정 우선, 없으면 센서값으로 판단.
     send_sensors.py 에서 호출:
         from face import update_face
-        update_face({"soil": 45, "temp": 24, "humid": 58, "light": 520})
+        update_face({"soil": 45, "temp": 24, "humid": 58, "light": 520}, mood="happy")
     """
     global _current_mood
     _init()
- 
+
     # pygame 이벤트 처리 (창 종료 등)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             return
- 
-    mood = _determine_mood(data)
-    if mood != _current_mood:
-        _current_mood = mood
- 
-    _draw_face(_screen, mood)
-    _draw_info(_screen, data, mood)
+
+    resolved = mood if mood in ("happy", "sad", "stressed", "sleepy") else _determine_mood(data)
+    if resolved != _current_mood:
+        _current_mood = resolved
+
+    _draw_face(_screen, resolved)
+    _draw_info(_screen, data, resolved)
     pygame.display.flip()
  
  

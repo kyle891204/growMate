@@ -10,6 +10,7 @@ Growmate LLM 백엔드 (Google Gemini API)
 import asyncio
 import json
 import os
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -51,6 +52,9 @@ if not GEMINI_API_KEY:
     )
 
 client = genai.Client(api_key=GEMINI_API_KEY)
+
+# LLM이 마지막으로 출력한 감정 태그를 메모리에 보관
+_current_llm_mood: str = "happy"
 
 app = FastAPI(title="Growmate LLM (Gemini)")
 
@@ -96,6 +100,9 @@ def build_system_prompt(s: Optional[Sensor]) -> str:
         "- 챗봇 말투(저는, ~입니다, 무엇을 도와드릴까요) 절대 금지\n"
         "- 사용자가 힘들어하면 먼저 따뜻하게 공감하고 위로해줘\n"
         "- 영어 금지, 한국어만\n"
+        "- 응답 맨 마지막에 반드시 감정 태그를 붙여: [MOOD:happy] [MOOD:sad] [MOOD:stressed] [MOOD:sleepy] 중 하나\n"
+        "  happy=기분 좋음, sad=슬프거나 물/영양 부족, stressed=힘들거나 더움, sleepy=졸리거나 빛 부족\n"
+        "  태그는 한 줄 전체를 차지하고 대화문에 포함하지 마\n"
     )
 
     status = ""
@@ -246,11 +253,20 @@ async def chat(req: ChatRequest):
                     # 누적 전체 텍스트를 done 이벤트에 같이 실어 보낸다.
                     # 프론트가 누락된 끝 토큰이 있으면 이걸로 보정.
                     reply = "".join(full_text)
+
+                    # LLM 감정 태그 파싱 및 저장
+                    global _current_llm_mood
+                    mood_match = re.search(r'\[MOOD:(happy|sad|stressed|sleepy)\]', reply)
+                    if mood_match:
+                        _current_llm_mood = mood_match.group(1)
+                    # 태그를 프론트로 보내기 전에 텍스트에서 제거
+                    clean_reply = re.sub(r'\s*\[MOOD:[^\]]+\]', '', reply).strip()
+
                     # 응답이 정상적으로 생성됐을 때만 (사용자 메시지 + 식물 응답) 함께 저장.
                     # 에러로 빈 응답이면 저장하지 않아 외톨이 메시지를 남기지 않는다.
-                    if reply.strip():
-                        await asyncio.to_thread(save_chat_pair, req.message, reply)
-                    payload = {"done": True, "full": reply}
+                    if clean_reply:
+                        await asyncio.to_thread(save_chat_pair, req.message, clean_reply)
+                    payload = {"done": True, "full": clean_reply, "mood": _current_llm_mood}
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
                     await asyncio.sleep(0)  # flush 보장
                     return
@@ -284,6 +300,12 @@ async def chat_simple(req: ChatRequest):
         return {"reply": (resp.text or "").strip()}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/mood")
+def get_mood():
+    """라즈베리파이가 폴링해서 현재 LLM 감정 상태를 가져간다."""
+    return {"mood": _current_llm_mood}
 
 
 # ── 설정 (DB 영속화) ────────────────────────────────────────────
