@@ -100,8 +100,8 @@ def build_system_prompt(s: Optional[Sensor]) -> str:
         "- 챗봇 말투(저는, ~입니다, 무엇을 도와드릴까요) 절대 금지\n"
         "- 사용자가 힘들어하면 먼저 따뜻하게 공감하고 위로해줘\n"
         "- 영어 금지, 한국어만\n"
-        "- 응답 맨 마지막에 반드시 감정 태그를 붙여: [MOOD:happy] [MOOD:sad] [MOOD:stressed] [MOOD:sleepy] 중 하나\n"
-        "  happy=기분 좋음, sad=슬프거나 물/영양 부족, stressed=힘들거나 더움, sleepy=졸리거나 빛 부족\n"
+        "- 응답 맨 마지막에 반드시 감정 태그를 붙여: [MOOD:happy] [MOOD:sad] [MOOD:thirsty] [MOOD:angry] 중 하나\n"
+        "  happy=기분 좋음, sad=슬프거나 우울함, thirsty=목마르거나 물/영양 부족, angry=화나거나 짜증나거나 더움\n"
         "  태그는 한 줄 전체를 차지하고 대화문에 포함하지 마\n"
     )
 
@@ -256,7 +256,7 @@ async def chat(req: ChatRequest):
 
                     # LLM 감정 태그 파싱 및 저장
                     global _current_llm_mood
-                    mood_match = re.search(r'\[MOOD:(happy|sad|stressed|sleepy)\]', reply)
+                    mood_match = re.search(r'\[MOOD:(happy|sad|thirsty|angry)\]', reply)
                     if mood_match:
                         _current_llm_mood = mood_match.group(1)
                     # 태그를 프론트로 보내기 전에 텍스트에서 제거
