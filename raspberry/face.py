@@ -153,18 +153,22 @@ def _teardrop(surf, color, x, y, w, h):
 
 
 def _water_glass(surf, x, y, w, h):
-    """오른쪽에 놓이는 물컵 아이콘 (위가 넓은 사다리꼴 + 물)."""
+    """미니멀 물컵 (위 넓은 사다리꼴 외곽선 + 물 + 수면선)."""
     top_l = (x, y)
     top_r = (x + w, y)
     bot_l = (x + w * 0.16, y + h)
     bot_r = (x + w * 0.84, y + h)
-    wl = y + h * 0.34   # 수면 높이
+
+    # 수면 높이 및 그 지점의 좌우 폭(사다리꼴 보간)
+    wl = y + h * 0.40
+    f = (wl - y) / h
+    wl_l = (x + w * (0.16 * f), wl)
+    wl_r = (x + w * (1.0 - 0.16 * f), wl)
+
     # 물 채움
-    wl_l = (x + w * 0.07, wl)
-    wl_r = (x + w * 0.93, wl)
     pygame.draw.polygon(surf, WATER, [wl_l, wl_r, bot_r, bot_l])
-    # 컵 외곽선
-    pygame.draw.lines(surf, WHITE, False, [top_l, bot_l, bot_r, top_r], 4)
+    # 컵 외곽선 (사다리꼴)
+    pygame.draw.lines(surf, WHITE, True, [top_l, top_r, bot_r, bot_l], 4)
     # 수면선
     pygame.draw.line(surf, WHITE, wl_l, wl_r, 3)
 
@@ -177,76 +181,71 @@ def _draw_face(surf, mood: str):
     eye_dx = 44
     lx, rx_ = cx - eye_dx, cx + eye_dx   # 좌/우 눈 중심 x
 
-    # ── happy: 노랑 가득 찬 얼굴 + 활짝 웃음 ──────────────────────
+    # ── happy: 검은 배경 + 노란 눈·입만으로 표현 ──────────────────
     if mood == "happy":
-        pygame.draw.circle(surf, YELLOW, (cx, cy), r)
-        # 감은 웃는 눈 (⌢ 위로 볼록)
+        # 감은 웃는 눈 (⌢ 위로 볼록) — 노란색, 더 깊게 구부림
         for ex in (lx, rx_):
-            _arc_curve(surf, BLACK, (ex, eye_y + 6), 22, 16,
+            _arc_curve(surf, YELLOW, (ex, eye_y + 18), 22, 24,
                        math.radians(0), math.radians(180), 7)
-        # 볼터치
-        for ex in (lx, rx_):
-            cheek = pygame.Surface((40, 22), pygame.SRCALPHA)
-            pygame.draw.ellipse(cheek, (255, 140, 120, 150), cheek.get_rect())
-            surf.blit(cheek, (ex - 20, cy + 18))
-        # 활짝 벌린 웃는 입 (아래 반원) + 혀
+        # 활짝 벌린 웃는 입 = 노란 아래 반원 + 혀 (눈에 더 가깝게 위로)
         mw, mh = 96, 84
-        mrect = pygame.Rect(cx - mw // 2, cy + 6, mw, mh)
-        pygame.draw.ellipse(surf, BLACK, mrect)
-        pygame.draw.rect(surf, YELLOW, (cx - mw // 2, cy + 6, mw, mh // 2))  # 윗부분 가려 평평한 위쪽
-        pygame.draw.line(surf, BLACK, (cx - mw // 2 + 3, cy + 6 + mh // 2),
-                         (cx + mw // 2 - 3, cy + 6 + mh // 2), 6)            # 윗입술 선
+        my = cy - 6
+        mrect = pygame.Rect(cx - mw // 2, my, mw, mh)
+        pygame.draw.ellipse(surf, YELLOW, mrect)                            # 노란 입
+        pygame.draw.rect(surf, BLACK, (cx - mw // 2, my, mw, mh // 2))      # 윗부분 잘라 아래 반원만
         pygame.draw.ellipse(surf, TONGUE,
-                            (cx - 22, cy + 6 + mh - 30, 44, 26))            # 혀
+                            (cx - 22, my + mh - 30, 44, 26))                # 혀
 
-    # ── sad: 파란 외곽선 + 처진 눈 + 눈물 ────────────────────────
+    # ── sad: 검은 배경 + 파란 눈·입·눈물만으로 표현 ───────────────
     elif mood == "sad":
-        pygame.draw.circle(surf, BLUE, (cx, cy), r, 7)
-        # 처진 슬픈 눈: 위로 볼록한 눈꺼풀(⌢) + 아래 동공, 바깥쪽이 살짝 내려감
+        # 처진 슬픈 눈 (⌣ 아래로 볼록 = happy 눈의 반대)
         for ex in (lx, rx_):
-            _arc_curve(surf, BLUE, (ex, eye_y + 4), 19, 13,
-                       math.radians(10), math.radians(170), 6)
-            pygame.draw.circle(surf, BLUE, (ex, eye_y + 8), 5)   # 동공
-        # 눈물 (왼쪽 눈 아래)
-        _teardrop(surf, WATER, lx, eye_y + 22, 18, 30)
-        # 우는 입 (⌢ 프라운)
-        _arc_curve(surf, BLUE, (cx, cy + 66), 34, 24,
-                   math.radians(20), math.radians(160), 7)
+            _arc_curve(surf, BLUE, (ex, eye_y - 2), 24, 18,
+                       math.radians(180), math.radians(360), 7)
+        # 눈물 (오른쪽 눈 바깥 아래로 흐름)
+        _teardrop(surf, WATER, rx_ + 18, eye_y + 16, 16, 30)
+        # 우는 입 (아래로 처진 프라운 ⌒)
+        _arc_curve(surf, BLUE, (cx, cy + 56), 40, 26,
+                   math.radians(0), math.radians(180), 7)
 
-    # ── thirsty: 주황 외곽선 + 혀 + 물컵 ─────────────────────────
+    # ── thirsty: 검은 배경 + 반쯤 감은 주황 눈 + 헥헥 혀 + 물컵 ────
     elif mood == "thirsty":
-        pygame.draw.circle(surf, ORANGE, (cx, cy), r, 7)
-        # 편안히 감은 눈 (⌣ 아래로 볼록 = 흐뭇)
+        # 반쯤 감은 졸린 눈: 주황 원 + 가로 눈꺼풀선 + 아래 반달 채움
+        er = 28
         for ex in (lx, rx_):
-            _arc_curve(surf, ORANGE, (ex, eye_y - 2), 20, 14,
-                       math.radians(200), math.radians(340), 7)
-        # 입 (벌린 윗선) + 아래로 늘어진 혀
-        pygame.draw.arc(surf, ORANGE,
-                        pygame.Rect(cx - 34, cy + 22, 68, 44),
-                        math.radians(200), math.radians(340), 7)
-        pygame.draw.ellipse(surf, TONGUE, (cx - 14, cy + 48, 28, 40))  # 늘어진 혀
-        pygame.draw.line(surf, (210, 70, 90), (cx, cy + 54), (cx, cy + 82), 3)
-        # 오른쪽 물컵
-        _water_glass(surf, 372, 116, 74, 96)
+            pygame.draw.circle(surf, ORANGE, (ex, eye_y), er, 4)          # 원 외곽
+            pygame.draw.line(surf, ORANGE, (ex - er + 1, eye_y - 1),
+                             (ex + er - 1, eye_y - 1), 4)                 # 가로 눈꺼풀
+            pygame.draw.arc(surf, ORANGE,
+                            pygame.Rect(ex - er + 4, eye_y - er + 4,
+                                        2 * (er - 4), 2 * (er - 4)),
+                            math.radians(200), math.radians(340), 8)     # 아래 눈동자
+        # 헥헥거리는 입(가로선) + 오른쪽 아래 아치형 빨간 혀
+        mx, my = cx - 4, cy + 34
+        # 오른쪽 아래로 볼록한 혀 (타원 아래 반쪽)
+        tw, th = 32, 26
+        tl = mx + 2
+        tcx = tl + tw // 2
+        pygame.draw.ellipse(surf, TONGUE, (tl, my - th, tw, th * 2))     # 혀 타원
+        pygame.draw.rect(surf, BLACK, (tl, my - th, tw, th))            # 윗부분 잘라 아래 아치만
+        pygame.draw.line(surf, BLACK, (tcx, my), (tcx, my + 16), 3)      # 혀 중앙 줄(입에 닿게)
+        pygame.draw.line(surf, ORANGE, (mx - 38, my), (mx + 42, my), 5)  # 입(가로선, 혀 덮게 넓게)
+        # 오른쪽 물컵 (작게, 입 쪽에 가깝게)
+        _water_glass(surf, 300, 170, 40, 58)
 
-    # ── angry: 빨강 외곽선 + '><' 눈 + 분노 마크 ─────────────────
+    # ── angry: 검은 배경 + 화난 눈썹 + '><' 눈 + 벌린 사각 입 ──────
     elif mood == "angry":
-        pygame.draw.circle(surf, RED, (cx, cy), r, 7)
-        # 왼쪽 눈 '>' : 오른쪽이 꼭짓점, 팔이 왼쪽으로
-        _thick_line(surf, RED, (lx + 20, eye_y), (lx - 18, eye_y - 18), 8)
-        _thick_line(surf, RED, (lx + 20, eye_y), (lx - 18, eye_y + 18), 8)
-        # 오른쪽 눈 '<' : 왼쪽이 꼭짓점, 팔이 오른쪽으로
-        _thick_line(surf, RED, (rx_ - 20, eye_y), (rx_ + 18, eye_y - 18), 8)
-        _thick_line(surf, RED, (rx_ - 20, eye_y), (rx_ + 18, eye_y + 18), 8)
-        # 이 악문 입 (작은 프라운)
-        _arc_curve(surf, RED, (cx, cy + 64), 26, 16,
-                   math.radians(20), math.radians(160), 7)
-        # 분노 마크 (💢) 오른쪽 위
-        mvx, mvy = cx + 78, cy - 70
-        pygame.draw.line(surf, RED, (mvx - 12, mvy), (mvx + 12, mvy), 5)
-        pygame.draw.line(surf, RED, (mvx, mvy - 12), (mvx, mvy + 12), 5)
-        pygame.draw.line(surf, RED, (mvx - 9, mvy - 9), (mvx + 9, mvy + 9), 5)
-        pygame.draw.line(surf, RED, (mvx - 9, mvy + 9), (mvx + 9, mvy - 9), 5)
+        # 가운데로 모인 화난 눈썹 (\  / 모양)
+        _thick_line(surf, RED, (lx - 26, eye_y - 26), (cx - 14, eye_y - 8), 8)
+        _thick_line(surf, RED, (rx_ + 26, eye_y - 26), (cx + 14, eye_y - 8), 8)
+        # 찡그린 '><' 눈
+        _thick_line(surf, RED, (lx + 16, eye_y + 8), (lx - 18, eye_y - 6), 8)   # '>' 위팔
+        _thick_line(surf, RED, (lx + 16, eye_y + 8), (lx - 18, eye_y + 22), 8)  # '>' 아래팔
+        _thick_line(surf, RED, (rx_ - 16, eye_y + 8), (rx_ + 18, eye_y - 6), 8)  # '<' 위팔
+        _thick_line(surf, RED, (rx_ - 16, eye_y + 8), (rx_ + 18, eye_y + 22), 8)  # '<' 아래팔
+        # 벌린 사각 입 (라운드 사각형 외곽선)
+        mrect = pygame.Rect(cx - 52, cy + 24, 104, 46)
+        pygame.draw.rect(surf, RED, mrect, 8, border_radius=12)
 
 
 # ── 센서값 텍스트 (옵션) ─────────────────────────────────────────
