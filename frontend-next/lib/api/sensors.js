@@ -25,6 +25,25 @@ export function getSensorReadings() {
   });
 }
 
+// GET /sensors/health — 설정 > 센서 상태 확인 (라즈베리파이 센서별 정상 여부)
+// health: "ok"(정상·최근수신) | "no_signal"(응답없음) | "no_data"(한번도 못받음)
+export function getSensorHealth() {
+  if (USE_MOCK) {
+    const nowIso = new Date().toISOString();
+    return mockDelay({
+      connected: true,
+      lastUpdate: nowIso,
+      sensors: [
+        { key: "soil", value: 42, status: "good", health: "ok", lastSeen: nowIso },
+        { key: "temp", value: 24.5, status: "good", health: "ok", lastSeen: nowIso },
+        { key: "humid", value: 55, status: "good", health: "ok", lastSeen: nowIso },
+        { key: "light", value: 600, status: "good", health: "ok", lastSeen: nowIso },
+      ],
+    });
+  }
+  return apiFetch("/sensors/health");
+}
+
 // 백엔드 원시 데이터 → 화면 표시용 변환
 function toView(s) {
   const META = {

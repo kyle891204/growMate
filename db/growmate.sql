@@ -2,18 +2,7 @@ CREATE DATABASE growMate;
 USE growMate;
 
 -- =========================
--- 1. USERS
--- =========================
-CREATE TABLE users (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    nickname VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =========================
--- 2. PLANT SPECIES (도감)
+-- 1. PLANT SPECIES (도감)
 -- =========================
 CREATE TABLE plant_species (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -30,11 +19,10 @@ CREATE TABLE plant_species (
 );
 
 -- =========================
--- 3. PLANT (사용자 화분)
+-- 2. PLANT (사용자 화분)
 -- =========================
 CREATE TABLE plant (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
     species_id BIGINT NOT NULL,
 
     name VARCHAR(100) NOT NULL,
@@ -48,12 +36,11 @@ CREATE TABLE plant (
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (species_id) REFERENCES plant_species(id)
 );
 
 -- =========================
--- 4. WATER LOG (물 준 기록)
+-- 3. WATER LOG (물 준 기록)
 -- =========================
 CREATE TABLE water_log (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -63,6 +50,21 @@ CREATE TABLE water_log (
     memo VARCHAR(255),
 
     watered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (plant_id) REFERENCES plant(id)
+);
+
+-- =========================
+-- 4. LED LOG (LED 작동 기록)
+-- =========================
+CREATE TABLE led_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    plant_id BIGINT NOT NULL,
+
+    on_off BOOLEAN NOT NULL,   -- TRUE=켜짐 / FALSE=꺼짐
+    reason VARCHAR(255),       -- 예: 조도 부족으로 보조 조명 작동
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (plant_id) REFERENCES plant(id)
 );

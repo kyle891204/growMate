@@ -10,7 +10,8 @@ Growmate LLM 백엔드 (Google Gemini API)
 import asyncio
 import json
 import os
-from datetime import datetime, timezone
+import threading
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -29,11 +30,19 @@ from sqlalchemy.orm import Session
 try:
     from database import Base, engine, get_db, SessionLocal
     import models  # noqa: F401 — Base.metadata 에 테이블 등록을 위해 import 필요
-    from models import ChatMessage, SensorReading, Setting, Suggestion, seed_defaults
+    from models import (
+        ChatMessage, Setting, Suggestion, seed_defaults,
+        Plant, PlantSpecies, WaterLog, LedLog, SensorData, SensorLatest, Alert,
+        SensorHealth, DEFAULT_PLANT_ID,
+    )
 except ModuleNotFoundError:
     from backend.database import Base, engine, get_db, SessionLocal
     from backend import models  # noqa: F401
-    from backend.models import ChatMessage, SensorReading, Setting, Suggestion, seed_defaults
+    from backend.models import (
+        ChatMessage, Setting, Suggestion, seed_defaults,
+        Plant, PlantSpecies, WaterLog, LedLog, SensorData, SensorLatest, Alert,
+        SensorHealth, DEFAULT_PLANT_ID,
+    )
 
 load_dotenv()
 
@@ -78,17 +87,35 @@ class ChatTurn(BaseModel):
         populate_by_name = True
 
 
+class PlantProfile(BaseModel):
+    """사용자가 정한 식물 정체성(프론트 localStorage growmate_profile). 페르소나에 주입."""
+    name: Optional[str] = None
+    species: Optional[str] = None
+
+
 class ChatRequest(BaseModel):
     message: str
     # 공감채팅은 센서 없이도 동작한다(감정 공감 중심). 있으면 페르소나에 컨디션 반영.
     sensor: Optional[Sensor] = None
     history: List[ChatTurn] = []
+    # 식물 이름/종 → 식물이 자기 이름을 알도록 system prompt 에 반영
+    profile: Optional[PlantProfile] = None
 
 
 # ── 식물 페르소나 system prompt ────────────────────────────────
-def build_system_prompt(s: Optional[Sensor]) -> str:
+def build_system_prompt(s: Optional[Sensor], profile: Optional[PlantProfile] = None) -> str:
+    identity = "너는 사용자가 화분에 키우는 작고 귀여운 식물이야. 1인칭 반말.\n"
+    name = profile.name.strip() if profile and profile.name else ""
+    species = profile.species.strip() if profile and profile.species else ""
+    if name:
+        identity += (
+            f"- 너의 이름은 '{name}'이야. 사용자가 너에게 지어준 이름이고, 너는 그게 네 이름인 걸 알아. "
+            f"누가 이름을 물으면 '{name}'(이)라고 답해\n"
+        )
+    if species:
+        identity += f"- 너는 '{species}' 라는 식물이야\n"
     rules = (
-        "너는 사용자가 화분에 키우는 작고 귀여운 식물이야. 1인칭 반말.\n"
+        identity +
         "규칙:\n"
         "- 친구처럼 친근하게 한두 문장으로 답해 (대략 20~60자)\n"
         "- 너무 짧게 한 단어만 답하지 말고, 항상 완결된 문장으로 끝맺기\n"
@@ -145,7 +172,7 @@ def to_gemini_contents(req: ChatRequest):
 
 def build_config(req: ChatRequest) -> types.GenerateContentConfig:
     return types.GenerateContentConfig(
-        system_instruction=build_system_prompt(req.sensor),
+        system_instruction=build_system_prompt(req.sensor, req.profile),
         temperature=0.9,
         # Gemini 2.5는 thinking 토큰을 max_output_tokens에서 먹는다.
         # thinking 끄고 답변에 충분한 토큰 할당.
@@ -250,6 +277,9 @@ async def chat(req: ChatRequest):
                     # 에러로 빈 응답이면 저장하지 않아 외톨이 메시지를 남기지 않는다.
                     if reply.strip():
                         await asyncio.to_thread(save_chat_pair, req.message, reply)
+                        # 대화에 식물이 응답 = 교감하는 기분 좋은 순간 → 잎 모션 1회.
+                        with _control_lock:
+                            _control["motor_shake"] = True
                     payload = {"done": True, "full": reply}
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
                     await asyncio.sleep(0)  # flush 보장
@@ -350,32 +380,99 @@ class LedBody(BaseModel):
     suggestionId: Optional[str] = None
 
 
+# ── 하드웨어 제어 명령 큐 (라즈베리파이 main.py 가 GET /api/control 로 폴링) ──
+# 노트북 백엔드는 GPIO 에 직접 접근할 수 없으므로(파이에만 핀이 있음),
+# 웹 버튼이 누르는 명령을 여기에 쌓아두고 파이가 가져가서 실행하는 구조다.
+#   - light_on    : 지속 상태. 매 폴링마다 그대로 반환 → 파이가 릴레이를 desired 상태로 동기화
+#   - water_sec   : 일회성. 반환 직후 0 으로 초기화 → 펌프가 5초마다 반복 작동하지 않도록
+#   - motor_shake : 일회성. 반환 직후 False → 기분 좋은 순간(물 주기·LED 켜기·대화 응답) 서보 잎 모션 1회
+# FastAPI 동기 엔드포인트는 스레드풀에서 도므로 Lock 으로 동시 접근을 막는다.
+WATER_PUMP_SEC = 3   # 물 주기 1회당 펌프 가동 시간(초) 기본값. 설정에서 못 읽을 때의 폴백.
+WATER_SEC_MIN, WATER_SEC_MAX = 1, 10  # 앱 슬라이더 범위(펌프 보호용 상한)
+_control_lock = threading.Lock()
+_control = {"light_on": False, "water_sec": 0, "motor_shake": False}
+
+
+def _water_seconds(db: Session) -> int:
+    """설정(care.waterSec)에서 1회 물 주기 펌프 시간을 읽어 1~10초로 제한.
+    물 양 = 펌프 가동 시간이므로, 이 값이 곧 '물 양'이다. 값이 없거나
+    이상하면 기본 3초로 폴백한다."""
+    row = db.get(Setting, "care")
+    sec = WATER_PUMP_SEC
+    if row is not None:
+        try:
+            sec = int(json.loads(row.value).get("waterSec", WATER_PUMP_SEC))
+        except (ValueError, TypeError, json.JSONDecodeError):
+            sec = WATER_PUMP_SEC
+    return max(WATER_SEC_MIN, min(WATER_SEC_MAX, sec))
+
+
+@app.get("/api/control")
+def get_control():
+    """라즈베리파이가 5초마다 폴링해 가져가는 제어 명령.
+    light_on 은 지속 상태로 매번 반환하고, water_sec/motor_shake 는
+    일회성이라 반환과 동시에 비워 중복 작동(펌프 반복 가동 등)을 막는다."""
+    with _control_lock:
+        cmd = dict(_control)
+        _control["water_sec"] = 0
+        _control["motor_shake"] = False
+    return cmd
+
+
 @app.post("/api/actions/water")
 def action_water(body: WaterBody, db: Session = Depends(get_db)):
-    """물 주기. 연결된 제안이 있으면 resolved 로 마킹."""
+    """물 주기 → water_log 기록(일지에 표시). 연결된 제안이 있으면 resolved 로 마킹.
+    펌프 가동 시간(=물 양)은 설정(care.waterSec)에서 가져온다 → 앱에서 조절 가능."""
+    sec = _water_seconds(db)
+    db.add(WaterLog(plant_id=DEFAULT_PLANT_ID, amount_ml=sec * 30, memo="사용자 직접 선택"))
     if body.suggestionId:
         row = db.get(Suggestion, body.suggestionId)
         if row is not None:
             row.status = "resolved"
-            db.commit()
-    # TODO(하드웨어): 여기서 워터펌프 GPIO 작동 (릴레이/MOSFET)
+    db.commit()
+    # 하드웨어: 다음 폴링에서 파이가 sec 초간 펌프 가동 + 잎 모션(1회). 여러 번 눌러도 누적되지 않음.
+    with _control_lock:
+        _control["water_sec"] = sec
+        _control["motor_shake"] = True
     return {"ok": True, "plant": {"mood": "happy"}}
 
 
 @app.post("/api/actions/led")
 def action_led(body: LedBody, db: Session = Depends(get_db)):
-    """LED ON/OFF. 연결된 제안이 있으면 resolved 로 마킹."""
+    """LED ON/OFF → led_log 기록(일지에 표시). 연결된 제안이 있으면 resolved 로 마킹."""
+    reason = "조도 부족으로 보조 조명 작동" if body.on else "사용자가 LED 끔"
+    db.add(LedLog(plant_id=DEFAULT_PLANT_ID, on_off=body.on, reason=reason))
     if body.suggestionId:
         row = db.get(Suggestion, body.suggestionId)
         if row is not None:
             row.status = "resolved"
-            db.commit()
-    # TODO(하드웨어): 여기서 식물 생장 LED ON/OFF 제어
+    db.commit()
+    # 하드웨어: LED 지속 상태 갱신 → 파이가 매 폴링마다 릴레이를 이 상태로 맞춘다.
+    # LED 켜기는 기분 좋은 순간 → 잎 모션 1회(끌 때는 안 흔든다).
+    with _control_lock:
+        _control["light_on"] = body.on
+        if body.on:
+            _control["motor_shake"] = True
     return {"ok": True, "ledOn": body.on}
+
+
+@app.get("/api/actions/led")
+def get_led():
+    """현재 LED 지속 상태(_control.light_on). 홈 화면이 마운트될 때 읽어
+    버튼 ON/OFF 를 복원한다 → 다른 탭 갔다 돌아와도 켜둔 상태가 유지된다."""
+    with _control_lock:
+        return {"ledOn": _control["light_on"]}
 
 
 # ── 센서 (라즈베리파이 → 서버 → 앱) ─────────────────────────────
 SENSOR_KEYS = ["soil", "temp", "humid", "light"]
+# API 키(프론트/라즈베리파이) ↔ DB 컬럼(sensor_latest / sensor_data)
+SENSOR_COL = {"soil": "soil_moisture", "temp": "temperature", "humid": "humidity", "light": "light"}
+
+
+def _iso(dt) -> Optional[str]:
+    """naive UTC datetime → ISO + 'Z' (프론트가 로컬 KST 로 변환)."""
+    return dt.isoformat() + "Z" if dt else None
 
 
 def sensor_status(key: str, value: float) -> str:
@@ -401,20 +498,40 @@ class SensorIngest(BaseModel):
 
 @app.post("/api/sensors")
 def ingest_sensors(body: SensorIngest, db: Session = Depends(get_db)):
-    """라즈베리파이가 호출 → 최신 센서값 저장(upsert)."""
-    now = datetime.now(timezone.utc)
+    """라즈베리파이가 호출 → 최신값 갱신(sensor_latest) + 히스토리 누적(sensor_data)."""
+    now = datetime.utcnow()
+    latest = db.get(SensorLatest, DEFAULT_PLANT_ID)
+    if latest is None:
+        latest = SensorLatest(plant_id=DEFAULT_PLANT_ID)
+        db.add(latest)
+
     updated = []
     for key in SENSOR_KEYS:
         val = getattr(body, key)
         if val is None:
             continue
-        row = db.get(SensorReading, key)
-        if row is not None:
-            row.value = val
-            row.updated_at = now
-        else:
-            db.add(SensorReading(key=key, value=val, updated_at=now))
+        # soil/light 는 정수 컬럼
+        setattr(latest, SENSOR_COL[key], int(round(val)) if key in ("soil", "light") else val)
         updated.append(key)
+    latest.updated_at = now
+
+    # 센서별 마지막 수신 시각 기록 → 설정>센서 상태 확인에서 개별 센서 정상 판정
+    for key in updated:
+        hrow = db.get(SensorHealth, key)
+        if hrow is None:
+            db.add(SensorHealth(key=key, last_seen=now))
+        else:
+            hrow.last_seen = now
+
+    # 히스토리 한 행(현재 최신값 스냅샷) — 주간 그래프 재료
+    db.add(SensorData(
+        plant_id=DEFAULT_PLANT_ID,
+        soil_moisture=latest.soil_moisture,
+        light=latest.light,
+        temperature=latest.temperature,
+        humidity=latest.humidity,
+        recorded_at=now,
+    ))
     db.commit()
     return {"ok": True, "updated": updated}
 
@@ -422,18 +539,152 @@ def ingest_sensors(body: SensorIngest, db: Session = Depends(get_db)):
 @app.get("/api/sensors")
 def get_sensors(db: Session = Depends(get_db)):
     """앱(홈 화면)이 호출 → 현재 센서값 + 상태. 프론트가 한글 라벨/단위로 가공한다."""
-    rows = {r.key: r for r in db.query(SensorReading).all()}
+    latest = db.get(SensorLatest, DEFAULT_PLANT_ID)
     sensors = []
+    if latest is not None:
+        raw = {
+            "soil": latest.soil_moisture,
+            "temp": latest.temperature,
+            "humid": latest.humidity,
+            "light": latest.light,
+        }
+        for key in SENSOR_KEYS:
+            v = raw[key]
+            if v is None:
+                continue
+            # 온도만 소수 1자리, 나머지는 정수로 깔끔하게
+            value = round(v, 1) if key == "temp" else int(round(v))
+            sensors.append({
+                "key": key,
+                "value": value,
+                "status": sensor_status(key, v),
+                "updatedAt": _iso(latest.updated_at),
+            })
+    return {"sensors": sensors}
+
+
+# ── 센서 상태 확인 (설정 > 센서 상태 확인) ──────────────────────
+SENSOR_FRESH_SEC = 60   # 이 시간 안에 받은 센서만 '정상'으로 본다 (전송 간격 5s 기준 여유)
+
+
+@app.get("/api/sensors/health")
+def sensors_health(db: Session = Depends(get_db)):
+    """라즈베리파이가 보내는 센서별 마지막 수신 시각으로 정상/응답없음/데이터없음 판정.
+    send_sensors.py 가 읽기 성공한 센서만 부분 전송하므로, 한 센서만 끊겨도 잡힌다."""
+    now = datetime.utcnow()
+    latest = db.get(SensorLatest, DEFAULT_PLANT_ID)
+    seen_map = {r.key: r.last_seen for r in db.query(SensorHealth).all()}
+    raw = {}
+    if latest is not None:
+        raw = {"soil": latest.soil_moisture, "temp": latest.temperature,
+               "humid": latest.humidity, "light": latest.light}
+
+    sensors = []
+    any_fresh = False
+    last_update = None
     for key in SENSOR_KEYS:
-        r = rows.get(key)
-        if r is None:
-            continue
-        # 온도만 소수 1자리, 나머지는 정수로 깔끔하게
-        value = round(r.value, 1) if key == "temp" else int(round(r.value))
+        seen = seen_map.get(key)
+        if seen is not None and (last_update is None or seen > last_update):
+            last_update = seen
+        if seen is None:
+            health = "no_data"          # 한 번도 못 받음
+        elif (now - seen).total_seconds() <= SENSOR_FRESH_SEC:
+            health = "ok"               # 최근 수신 → 정상
+            any_fresh = True
+        else:
+            health = "no_signal"        # 한동안 응답 없음
+        v = raw.get(key)
+        value = None
+        if v is not None:
+            value = round(v, 1) if key == "temp" else int(round(v))
         sensors.append({
             "key": key,
             "value": value,
-            "status": sensor_status(key, r.value),
-            "updatedAt": (r.updated_at.isoformat() + "Z" if r.updated_at else None),
+            "status": sensor_status(key, v) if v is not None else None,  # good|warn
+            "health": health,
+            "lastSeen": _iso(seen),
         })
-    return {"sensors": sensors}
+    return {"connected": any_fresh, "lastUpdate": _iso(last_update), "sensors": sensors}
+
+
+# ── 일지 (water_log + led_log + alert 병합) ─────────────────────
+KST = timezone(timedelta(hours=9))
+
+
+def _kst_today_start_utc() -> datetime:
+    """오늘(KST) 00:00 을 naive UTC 로. '오늘' 카운트 경계용."""
+    now_kst = datetime.now(KST)
+    start_kst = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start_kst.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+@app.get("/api/logs")
+def get_logs(type: str = "all", db: Session = Depends(get_db)):
+    """일지 타임라인. type: all | water | led | chat | sensor (최신순)."""
+    items = []
+    if type in ("all", "water"):
+        for r in db.query(WaterLog).all():
+            items.append({"id": f"water-{r.id}", "type": "water", "title": "물 주기 완료",
+                          "detail": r.memo or "", "createdAt": _iso(r.watered_at)})
+    if type in ("all", "led"):
+        for r in db.query(LedLog).all():
+            items.append({"id": f"led-{r.id}", "type": "led",
+                          "title": "LED 켜짐" if r.on_off else "LED 꺼짐",
+                          "detail": r.reason or "", "createdAt": _iso(r.created_at)})
+    if type in ("all", "sensor"):
+        for r in db.query(Alert).all():
+            items.append({"id": f"alert-{r.id}", "type": "sensor", "title": "상태 알림",
+                          "detail": r.message or "", "createdAt": _iso(r.created_at)})
+    items.sort(key=lambda x: x["createdAt"] or "", reverse=True)
+    return {"logs": items}
+
+
+@app.get("/api/diary/summary")
+def diary_summary(db: Session = Depends(get_db)):
+    """오늘(KST) 기록 요약 → {title, summary, encourage}."""
+    start = _kst_today_start_utc()
+    water_n = db.query(WaterLog).filter(WaterLog.watered_at >= start).count()
+    led_n = db.query(LedLog).filter(LedLog.created_at >= start).count()
+    parts = []
+    if water_n:
+        parts.append(f"물 주기 {water_n}회")
+    if led_n:
+        parts.append(f"LED {led_n}회")
+    summary = ", ".join(parts) if parts else "아직 오늘 기록이 없어요"
+    return {
+        "title": "오늘의 기록",
+        "summary": summary,
+        "encourage": "식물이 편안한 하루였어요. 계속 잘 돌봐주고 있어요!",
+    }
+
+
+@app.get("/api/stats/weekly")
+def stats_weekly(db: Session = Depends(get_db)):
+    """최근 7일(KST) 일별 토양/조도 평균 → 0~100 정규화한 그래프 포인트."""
+    from collections import defaultdict
+
+    days_kr = ["월", "화", "수", "목", "금", "토", "일"]
+    today_kst = datetime.now(KST).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    bucket = defaultdict(list)
+    for r in db.query(SensorData).all():
+        if r.recorded_at is None:
+            continue
+        d = r.recorded_at.replace(tzinfo=timezone.utc).astimezone(KST).date()
+        bucket[d].append(r)
+
+    points = []
+    for i in range(6, -1, -1):
+        day = (today_kst - timedelta(days=i)).date()
+        recs = bucket.get(day, [])
+        if recs:
+            soil = sum((x.soil_moisture or 0) for x in recs) / len(recs)
+            light = sum((x.light or 0) for x in recs) / len(recs)
+        else:
+            soil = light = 0
+        points.append({
+            "day": days_kr[day.weekday()],
+            "soil": round(soil),                  # 이미 % (0~100)
+            "light": min(100, round(light / 10)),  # lux → 0~100 정규화(약식)
+        })
+    return {"points": points}

@@ -5,7 +5,8 @@ import PlantCharacter from "@/components/PlantCharacter";
 import Pill from "@/components/Pill";
 import { SendIcon } from "@/components/Icons";
 import { promptChips } from "@/lib/data/chat";
-import { streamMessage, getMessages } from "@/lib/api";
+import { streamMessage, getMessages, clearMessages } from "@/lib/api";
+import { useProfile } from "@/lib/hooks/useProfile";
 import styles from "./chat.module.css";
 
 function formatTime(date) {
@@ -41,6 +42,7 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false); // 응답 스트리밍 중
   const scrollRef = useRef(null);
   const idRef = useRef(0); // 새 메시지용 로컬 카운터 (id 는 'local-N' 문자열)
+  const { profile } = useProfile(); // 식물 이름/종 → 페르소나 주입
 
   // 마운트 시 저장된 대화 기록을 불러온다 → 페이지 이동/새로고침 후에도 유지.
   useEffect(() => {
@@ -94,7 +96,7 @@ export default function ChatPage() {
       );
 
     await streamMessage(
-      { message: trimmed, history },
+      { message: trimmed, history, profile: { name: profile.name, species: profile.species } },
       {
         onToken: appendToken,
         onDone: (full) => {
@@ -126,9 +128,33 @@ export default function ChatPage() {
     send(input);
   }
 
+  // 대화 초기화: 서버 기록 삭제 + 화면을 첫 인사만 남긴 상태로 되돌린다.
+  async function handleReset() {
+    if (busy) return;
+    if (!window.confirm("대화 기록을 모두 지울까요? 되돌릴 수 없어요.")) return;
+    try {
+      await clearMessages();
+      idRef.current = 0;
+      setMessages([GREETING]);
+    } catch (e) {
+      console.error("대화 초기화 실패:", e);
+      window.alert("대화 초기화에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    }
+  }
+
   return (
     <div className={styles.wrap}>
-      <h1 className="screen-title">공감채팅</h1>
+      <div className={styles.titleRow}>
+        <h1 className={`screen-title ${styles.title}`}>공감채팅</h1>
+        <button
+          type="button"
+          className={styles.resetBtn}
+          onClick={handleReset}
+          disabled={busy}
+        >
+          대화 초기화
+        </button>
+      </div>
 
       {/* 상단 안내 카드 */}
       <section className={styles.introCard}>

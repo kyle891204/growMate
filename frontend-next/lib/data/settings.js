@@ -23,8 +23,6 @@ export const chatSettings = [
 // 연결 및 시스템
 export const systemMenu = [
   { key: "sensorCheck", label: "센서 상태 확인" },
-  { key: "wifi", label: "Wi-Fi 연결" },
-  { key: "device", label: "장치 정보" },
 ];
 
 // 식물 프로필 카드

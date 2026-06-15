@@ -249,6 +249,79 @@
 }
 
 
+/* 직접 돌보기 (물 주기 / LED 제어 버튼) */
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.controlBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.controlBtn:active {
+  transform: scale(0.97);
+}
+
+.controlBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.controlIcon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+}
+
+.waterIcon {
+  background: #e6f0fa;
+}
+
+.ledIcon {
+  background: var(--bg);
+}
+
+.ledIconOn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: #fff3df;
+}
+
+/* LED ON 상태: 버튼 전체를 따뜻하게 강조 */
+.controlOn {
+  border-color: #f0cd8a;
+  background: #fffaf0;
+  color: #b5780a;
+}
+
+.controlLabel {
+  white-space: nowrap;
+}
+
 /* 센서 */
 .sectionTitle {
   margin: 22px 2px 12px;

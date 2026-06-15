@@ -8,7 +8,7 @@ export function getSettings() {
     const toObj = (arr) => Object.fromEntries(arr.map((s) => [s.key, s.value]));
     return mockDelay({
       notify: toObj(notifySettings),
-      care: toObj(careSettings),
+      care: { ...toObj(careSettings), waterSec: 3 },
       chat: toObj(chatSettings),
     });
   }

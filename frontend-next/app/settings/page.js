@@ -118,6 +118,27 @@ export default function SettingsPage() {
             onChange={(next) => handleToggle("care", s.key, next)}
           />
         ))}
+        {/* 1회 물 주기 양 = 펌프 가동 시간(초). 1~10초, 길수록 물 많이. */}
+        <div className={styles.sliderRow}>
+          <div className={styles.sliderHead}>
+            <span className={styles.rowLabel}>1회 물 주기 양</span>
+            <span className={styles.rowValue}>{care.waterSec ?? 3}초</span>
+          </div>
+          <input
+            className={styles.slider}
+            type="range"
+            min={1}
+            max={10}
+            step={1}
+            value={care.waterSec ?? 3}
+            onChange={(e) => setValue("care", "waterSec", Number(e.target.value))}
+            aria-label="1회 물 주기 양(펌프 가동 시간, 초)"
+          />
+          <div className={styles.sliderScale}>
+            <span>적게</span>
+            <span>많이</span>
+          </div>
+        </div>
       </Section>
 
       {/* 공감채팅 설정 */}
@@ -165,18 +186,16 @@ export default function SettingsPage() {
       {/* 연결 및 시스템 */}
       <Section title="연결 및 시스템">
         {systemMenu.map((s) => (
-          <button key={s.key} className={styles.row}>
+          <button
+            key={s.key}
+            className={styles.row}
+            onClick={s.key === "sensorCheck" ? () => router.push("/settings/sensors") : undefined}
+          >
             <span className={styles.rowLabel}>{s.label}</span>
             <ChevronRight />
           </button>
         ))}
       </Section>
-
-      {/* 하단 버튼 */}
-      <div className={styles.bottomBtns}>
-        <button className={styles.logout}>로그아웃</button>
-        <button className={styles.reset}>초기화</button>
-      </div>
     </div>
   );
 }
