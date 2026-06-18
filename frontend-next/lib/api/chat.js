@@ -8,6 +8,12 @@ export function getMessages() {
   return apiFetch("/chat/messages").then((data) => data.messages);
 }
 
+// DELETE /chat/messages — 대화 기록 전체 삭제 (대화 초기화)
+export function clearMessages() {
+  if (USE_MOCK) return mockDelay({ ok: true });
+  return apiFetch("/chat/messages", { method: "DELETE" });
+}
+
 // POST /chat — 메시지 전송 + 식물(LLM) 응답 (한 번에)
 // ⚠️ mock 은 키워드 매칭(getPlantReply)으로 답합니다. 실제로는 백엔드 LLM 이 reply 를 생성합니다.
 export function sendMessage(text) {
@@ -29,7 +35,7 @@ export function sendMessage(text) {
 //   콜백: onToken(누적 X, 새 조각), onDone(전체 텍스트), onError(Error)
 // mock 모드(NEXT_PUBLIC_API_BASE_URL 미설정)에서는 키워드 응답을 흉내내어 스트리밍한다.
 export async function streamMessage(
-  { message, history = [], sensor = null },
+  { message, history = [], sensor = null, profile = null },
   { onToken, onDone, onError, signal } = {}
 ) {
   if (USE_MOCK) {
@@ -48,6 +54,7 @@ export async function streamMessage(
   try {
     const body = { message, history };
     if (sensor) body.sensor = sensor;
+    if (profile) body.profile = profile;
     const res = await fetch(`${API_BASE}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

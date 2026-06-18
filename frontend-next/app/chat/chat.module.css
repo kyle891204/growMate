@@ -1,6 +1,46 @@
 .wrap {
   display: flex;
   flex-direction: column;
+  /* 상단 고정된 제목줄(.titleRow) 높이만큼 본문을 내려 가린다 */
+  padding-top: 54px;
+}
+
+/* 제목 + 대화 초기화 버튼 한 줄 — 상단 고정 (하단 칩/입력바와 동일 패턴) */
+.titleRow {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--frame-width);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg);
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  margin: 0; /* screen-title 여백 제거 → titleRow 가 관리 */
+}
+
+.resetBtn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.resetBtn:disabled {
+  opacity: 0.45;
 }
 
 /* 상단 안내 카드 */

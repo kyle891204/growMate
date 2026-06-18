@@ -35,7 +35,6 @@ export const logFilters = [
   { key: "all", label: "전체" },
   { key: "water", label: "급수" },
   { key: "led", label: "LED" },
-  { key: "chat", label: "대화" },
   { key: "sensor", label: "센서" },
 ];
 

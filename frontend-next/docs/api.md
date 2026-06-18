@@ -145,6 +145,12 @@
 }
 ```
 
+`GET /actions/led` — 현재 LED 상태 조회(홈 진입 시 버튼 ON/OFF 복원용).
+응답:
+```json
+{ "ledOn": true }
+```
+
 ### 1.6 `POST /suggestions/{id}/dismiss` — 제안 미루기 ([나중에])
 요청 본문 없음.
 응답:

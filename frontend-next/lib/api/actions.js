@@ -37,3 +37,11 @@ export function setLed(on, suggestionId) {
   }
   return apiFetch("/actions/led", { method: "POST", body: { on, suggestionId } });
 }
+
+// GET /actions/led — 현재 LED 상태. 홈 진입 시 버튼 ON/OFF 복원에 쓴다.
+export function getLed() {
+  if (USE_MOCK) {
+    return mockDelay({ ledOn: false });
+  }
+  return apiFetch("/actions/led");
+}

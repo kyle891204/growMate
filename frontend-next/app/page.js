@@ -5,9 +5,9 @@ import PlantCharacter from "@/components/PlantCharacter";
 import SpeechBubble from "@/components/SpeechBubble";
 import SensorCard from "@/components/SensorCard";
 import Pill from "@/components/Pill";
-import { BellIcon } from "@/components/Icons";
+import { BellIcon, DropletIcon, LedIcon } from "@/components/Icons";
 import { plant } from "@/lib/data/plant";
-import { getSensorReadings, getSuggestions, waterPlant, setLed, dismissSuggestion } from "@/lib/api";
+import { getSensorReadings, getSuggestions, waterPlant, setLed, getLed, dismissSuggestion } from "@/lib/api";
 import { evaluateSensors } from "@/lib/data/sensors";
 import { useProfile } from "@/lib/hooks/useProfile";
 import styles from "./home.module.css";
@@ -33,6 +33,9 @@ export default function HomePage() {
   const [toast, setToast] = useState(null);
   // 조명: 처음엔 어두운 상태(조도 부족). LED를 켜면 밝아진다.
   const [ledOn, setLedOn] = useState(false);
+  // 직접 제어 버튼 중복 클릭 방지(요청 진행 중 비활성화)
+  const [watering, setWatering] = useState(false);
+  const [ledBusy, setLedBusy] = useState(false);
 
   // 활성 제안을 백엔드에서 불러온다. 처리한 제안은 서버에서 빠지므로 다시 뜨지 않는다.
   useEffect(() => {
@@ -40,6 +43,17 @@ export default function HomePage() {
     getSuggestions()
       .then((list) => alive && setSuggestions(list))
       .catch((e) => console.error("제안 불러오기 실패:", e));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // 현재 LED 상태를 불러와 버튼을 복원한다. → 켜둔 채 다른 탭 갔다 와도 ON 유지.
+  useEffect(() => {
+    let alive = true;
+    getLed()
+      .then((r) => alive && setLedOn(!!r?.ledOn))
+      .catch((e) => console.error("LED 상태 불러오기 실패:", e));
     return () => {
       alive = false;
     };
@@ -94,6 +108,42 @@ export default function HomePage() {
       // 실패 시 목록 복구
       setSuggestions((prev) => (prev.some((s) => s.id === id) ? prev : [...prev, item]));
       setToast("처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
+      setTimeout(() => setToast(null), 2600);
+    }
+  }
+
+  // 직접 물 주기 — 제안과 무관하게 사용자가 언제든 펌프를 작동(suggestionId 없음).
+  async function handleWater() {
+    if (watering) return;
+    setWatering(true);
+    try {
+      await waterPlant();
+      setMood("happy");
+      setToast("물을 주었어요. 잎이 다시 생기를 찾고 있어요!");
+    } catch (e) {
+      console.error("물 주기 실패:", e);
+      setToast("물 주기에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setWatering(false);
+      setTimeout(() => setToast(null), 2600);
+    }
+  }
+
+  // 직접 LED 켜기/끄기 — 화면 밝기는 낙관적으로 먼저 반영하고, 실패하면 되돌린다.
+  async function handleToggleLed() {
+    if (ledBusy) return;
+    const next = !ledOn;
+    setLedBusy(true);
+    setLedOn(next);
+    try {
+      await setLed(next);
+      setToast(next ? "LED를 켰어요. 한결 환해졌어요!" : "LED를 껐어요.");
+    } catch (e) {
+      console.error("LED 제어 실패:", e);
+      setLedOn(!next); // 롤백
+      setToast("LED 제어에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setLedBusy(false);
       setTimeout(() => setToast(null), 2600);
     }
   }
@@ -181,6 +231,38 @@ export default function HomePage() {
           </div>
         </div>
         <p className={styles.statusDesc}>{plant.statusDesc}</p>
+      </section>
+
+      {/* 직접 돌보기 — 물 주기 / LED (라즈베리파이 액추에이터 제어) */}
+      <h2 className={styles.sectionTitle}>직접 돌보기</h2>
+      <section className={styles.controls}>
+        <button
+          type="button"
+          className={styles.controlBtn}
+          onClick={handleWater}
+          disabled={watering}
+        >
+          <span className={`${styles.controlIcon} ${styles.waterIcon}`} aria-hidden="true">
+            <DropletIcon size={22} color="#3b86c8" />
+          </span>
+          <span className={styles.controlLabel}>{watering ? "물 주는 중…" : "물 주기"}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.controlBtn} ${ledOn ? styles.controlOn : ""}`}
+          onClick={handleToggleLed}
+          disabled={ledBusy}
+          aria-pressed={ledOn}
+        >
+          <span
+            className={`${styles.controlIcon} ${ledOn ? styles.ledIconOn : styles.ledIcon}`}
+            aria-hidden="true"
+          >
+            <LedIcon size={22} color={ledOn ? "#d9920a" : "var(--text-sub)"} />
+          </span>
+          <span className={styles.controlLabel}>{ledOn ? "LED 끄기" : "LED 켜기"}</span>
+        </button>
       </section>
 
       {/* 센서 요약 2x2 */}
