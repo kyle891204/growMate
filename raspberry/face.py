@@ -2,11 +2,13 @@
 """
 GrowMate 표정 디스플레이 모듈 (3.5인치 RPi LCD, 480×320)
 
-표정 초안(검정 배경 + 컬러 테마)에 맞춘 4가지 상태:
-  happy   — 노랑, 활짝 웃는 얼굴      (모든 조건 정상 / 기쁨)
-  thirsty — 주황, 혀 내밀고 + 물컵     (토양 건조·습도 부족 / 목마름)
-  angry   — 빨강, '><' 화난 눈        (과열·과한 빛 / 화남·짜증)
-  sad     — 파랑, 눈물 한 방울        (빛 부족·어두움 / 슬픔·우울)
+표정(검정 배경 + 컬러 테마) 6가지 상태:
+  happy   — 노랑,  활짝 웃는 얼굴       (모든 조건 정상)
+  thirsty — 주황,  혀 내밀고 + 물컵      (토양 건조)
+  hot     — 빨강,  열기 물결 + 처진 눈   (고온)
+  cold    — 하늘색, '><' 눈 + 고드름     (저온)
+  sad     — 파랑,  눈물 한 방울         (조도 부족 / 어두움)
+  sick    — 풀빛,  빙글 눈 + 물결 입     (이상 2개 이상 겹침 / 과습)
 
 KMS/DRM 환경이라 /dev/fb1 직접 쓰기는 안 되므로, 데스크톱 세션 위에
 pygame 전체화면 창으로 띄운다. 반드시 라즈베리파이 '데스크톱 터미널'에서 실행.
@@ -38,7 +40,6 @@ BLACK   = (0, 0, 0)
 YELLOW  = (255, 211, 64)
 BLUE    = (66, 153, 225)
 ORANGE  = (255, 140, 50)
-RED     = (240, 60, 55)
 WHITE   = (235, 238, 245)
 WATER   = (120, 200, 255)
 TONGUE  = (255, 110, 120)
@@ -46,14 +47,15 @@ TEXT    = (200, 205, 215)
 ICE     = (150, 220, 255)    # cold (저온) — 차가운 하늘색
 HOT     = (255, 95, 60)      # hot  (고온) — 뜨거운 빨강·주황
 SWEAT   = (120, 200, 255)    # 땀방울
+SICK    = (150, 200, 120)    # sick (아픔) — 창백한 풀빛 녹색
 
 MOOD_COLOR = {
     "happy":   YELLOW,
     "sad":     BLUE,
     "thirsty": ORANGE,
-    "angry":   RED,
     "cold":    ICE,
     "hot":     HOT,
+    "sick":    SICK,
 }
 VALID_MOODS = tuple(MOOD_COLOR.keys())
 
@@ -151,26 +153,57 @@ def _init():
 
 
 # ── 조건 판단 (서버 미연동 시 센서 기반 로컬 fallback) ────────────
-# 백엔드 determine_display_mood() 와 동일한 우선순위. 기준은 prefs(식물 프로필).
-def _determine_mood(data: dict, prefs: dict = None) -> str:
+# 백엔드 determine_display_mood() 와 동일한 로직. 기준은 prefs(식물 프로필).
+MOOD_DEADZONE = 0.05   # happy 여유: 경계에 둘 데드존 (범위 폭 대비)
+
+_PROBLEM_MOOD = {        # 단일 이상 → 표정. 과습 단독도 sick / 'humid' 단독은 무시(happy).
+    "dry":  "thirsty",   # 토양 건조
+    "wet":  "sick",      # 과습
+    "hot":  "hot",       # 고온
+    "cold": "cold",      # 저온
+    "dark": "sad",       # 조도 부족 (어두움)
+}
+
+
+def _detect_problems(data: dict, prefs: dict = None) -> list:
+    """켜진 '이상 조건' 목록. 각 경계에 5% 데드존 적용."""
     p = prefs or DEFAULT_PREFS
     soil  = data.get("soil")
     temp  = data.get("temp")
     humid = data.get("humid")
     light = data.get("light")
     min_lux = LIGHT_MIN_LUX.get(p.get("lightLevel", "보통"), 400)
+    problems = []
 
-    if soil is not None and soil < p["soilMoistureMin"]:
-        return "thirsty"                       # 토양 건조
-    if temp is not None and temp > p["tempMax"]:
-        return "hot"                           # 고온
-    if temp is not None and temp < p["tempMin"]:
-        return "cold"                          # 저온
-    if light is not None and light < min_lux:
-        return "sad"                           # 조도 부족
-    if (soil is not None and soil > p["soilMoistureMax"]) or \
-       (humid is not None and not (p["humidityMin"] <= humid <= p["humidityMax"])):
-        return "angry"                         # 과습 · 습도 이상
+    if soil is not None:
+        m = (p["soilMoistureMax"] - p["soilMoistureMin"]) * MOOD_DEADZONE
+        if soil < p["soilMoistureMin"] - m:
+            problems.append("dry")
+        elif soil > p["soilMoistureMax"] + m:
+            problems.append("wet")
+    if temp is not None:
+        m = (p["tempMax"] - p["tempMin"]) * MOOD_DEADZONE
+        if temp > p["tempMax"] + m:
+            problems.append("hot")
+        elif temp < p["tempMin"] - m:
+            problems.append("cold")
+    if light is not None and light < min_lux * (1 - MOOD_DEADZONE):
+        problems.append("dark")
+    if humid is not None:
+        m = (p["humidityMax"] - p["humidityMin"]) * MOOD_DEADZONE
+        if not (p["humidityMin"] - m <= humid <= p["humidityMax"] + m):
+            problems.append("humid")
+
+    return problems
+
+
+def _determine_mood(data: dict, prefs: dict = None) -> str:
+    """이상 2개 이상 → sick / 1개 → 해당 표정(습도 단독 무시) / 0개 → happy."""
+    problems = _detect_problems(data, prefs)
+    if len(problems) >= 2:
+        return "sick"
+    if len(problems) == 1:
+        return _PROBLEM_MOOD.get(problems[0], "happy")
     return "happy"
 
 
@@ -287,20 +320,6 @@ def _draw_face(surf, mood: str):
         # 오른쪽 물컵 (작게, 입 쪽에 가깝게)
         _water_glass(surf, 300, 170, 40, 58)
 
-    # ── angry: 검은 배경 + 화난 눈썹 + '><' 눈 + 벌린 사각 입 ──────
-    elif mood == "angry":
-        # 가운데로 모인 화난 눈썹 (\  / 모양)
-        _thick_line(surf, RED, (lx - 26, eye_y - 26), (cx - 14, eye_y - 8), 8)
-        _thick_line(surf, RED, (rx_ + 26, eye_y - 26), (cx + 14, eye_y - 8), 8)
-        # 찡그린 '><' 눈
-        _thick_line(surf, RED, (lx + 16, eye_y + 8), (lx - 18, eye_y - 6), 8)   # '>' 위팔
-        _thick_line(surf, RED, (lx + 16, eye_y + 8), (lx - 18, eye_y + 22), 8)  # '>' 아래팔
-        _thick_line(surf, RED, (rx_ - 16, eye_y + 8), (rx_ + 18, eye_y - 6), 8)  # '<' 위팔
-        _thick_line(surf, RED, (rx_ - 16, eye_y + 8), (rx_ + 18, eye_y + 22), 8)  # '<' 아래팔
-        # 벌린 사각 입 (라운드 사각형 외곽선)
-        mrect = pygame.Rect(cx - 52, cy + 24, 104, 46)
-        pygame.draw.rect(surf, RED, mrect, 8, border_radius=12)
-
     # ── cold: 검은 배경 + 하늘색 '><' 눈 + 이 악문 입 + 땀 + 눈송이 + 고드름 ──
     elif mood == "cold":
         # 꽉 감은 '><' 눈 (안쪽으로 모인 꼭짓점)
@@ -369,14 +388,40 @@ def _draw_face(surf, mood: str):
         # 아래 가운데 완만한 오목 — 넓고 얕게 깎아 부드러운 곡선
         pygame.draw.ellipse(surf, BLACK, (cx - 42, mtop + mh3 - 10, 84, 26))
 
+    # ── sick: 창백한 녹색 + 빙글 도는 눈 + 메스꺼운 물결 입 + 식은땀 ──
+    elif mood == "sick":
+        # 어질어질 빙글 도는 눈 (나선)
+        for ex in (lx, rx_):
+            pts = []
+            steps = 60
+            for i in range(steps + 1):
+                t = i / steps
+                ang = t * 2.4 * 2 * math.pi      # 2.4바퀴
+                rad = 3 + t * 17
+                pts.append((ex + rad * math.cos(ang), eye_y + rad * math.sin(ang)))
+            pygame.draw.lines(surf, SICK, False, pts, 4)
+        # 메스꺼운 물결 입 (~~~)
+        mw, my = 96, cy + 44
+        pts = []
+        for i in range(33):
+            t = i / 32
+            xx = cx - mw / 2 + t * mw
+            yy = my + 9 * math.sin(t * 3 * math.pi)
+            pts.append((xx, yy))
+        pygame.draw.lines(surf, SICK, False, pts, 6)
+        # 식은땀 한 방울 (왼쪽 관자놀이)
+        _teardrop(surf, SWEAT, lx - 30, eye_y - 22, 12, 20)
+
 
 # ── 센서값 텍스트 (옵션) ─────────────────────────────────────────
 def _draw_info(surf, data: dict, mood: str):
     label = {
         "happy":   "건강해요 :)",
         "thirsty": "물이 필요해요",
-        "angry":   "너무 더워요",
         "sad":     "빛이 필요해요",
+        "cold":    "너무 추워요",
+        "hot":     "너무 더워요",
+        "sick":    "여기저기 안 좋아요",
     }
     t = _font_large.render(label.get(mood, ""), True, TEXT)
     surf.blit(t, (12, 8))
