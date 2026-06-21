@@ -1,27 +1,24 @@
 # growMate 🌱
-
-2026-1 한양대 피지컬컴퓨팅 5조 — 라즈베리파이 + 센서로 키우는 식물을 LLM(Google Gemini)과 채팅으로 돌보는 IoT 프로젝트.
+2026-1 한양대학교 ERICA 피지컬컴퓨팅 5조
+라즈베리파이 + 센서 + LLM(Google Gemini)와 채팅으로 돌보는 양방향소통 스마트화분 프로젝트
 
 ```
-┌────────────┐       ┌──────────────┐       ┌────────────────┐
-│ React UI   │──────▶│ FastAPI 백엔드│──────▶│ Gemini 2.5 Flash│
-│ (frontend) │ /api  │  (backend)   │ SSE   │  (cloud API)    │
-└────────────┘       └──────────────┘       └────────────────┘
-                              ▲
-                              │ (식물 페르소나 + 센서값 system prompt)
+React UI(Frontend) ──────▶ FastAPI(Backend) ──────▶ Gemini 2.5 Flash(Cloud API)
+                    /api                      SSE
 ```
 
 ## 폴더
-
 ```
 growMate/
-├── frontend/      React + Vite UI (식물 모니터/채팅)
+├── frontend/      Frontend 디자인 초안
+├── frontend-next/ React + Vite UI (식물 모니터/채팅)
 ├── backend/       FastAPI + Gemini API (식물 페르소나 챗봇)
+├── db/            센서값 저장
+├── raspberry/     식물 표정, 센서값 전송
 └── README.md
 ```
 
-## 빠른 시작 (팀원용)
-
+## 코드 시작 (팀원 공지용)
 ### 0. clone
 ```bash
 git clone https://github.com/Aninnom/growMate.git
